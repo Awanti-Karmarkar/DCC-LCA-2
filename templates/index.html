@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quote Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+    <h1>✨ Daily Motivation ✨</h1>
+    
+    <p class="quote">{{ quote }}</p>
+    
+    <form method="get">
+        <button type="submit">New Quote</button>
+    </form>
+</div>
+
+</body>
+</html>
