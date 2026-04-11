@@ -1,0 +1,175 @@
+================================================================================
+         NFS (Network File System) — COMPLETE COMMAND REFERENCE
+         Task 2: Configure NFS Server & Client | Mount & Verify Access
+================================================================================
+
+  Server IP : 192.168.56.101
+  Client IP : 192.168.56.102
+
+================================================================================
+  SECTION 1 — SERVER-SIDE COMMANDS  (Run on: 192.168.56.101)
+================================================================================
+
+--------------------------------------------------------------------------------
+CMD 1 | sudo apt update
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Refreshes the local package index so the system knows about the latest
+          available software versions before installation begins.
+          Always run this before installing any new package to avoid installing
+          outdated or missing dependencies.
+
+--------------------------------------------------------------------------------
+CMD 2 | sudo apt install nfs-kernel-server -y
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Installs the NFS kernel server — the core service that enables Linux
+          to export (share) directories over the network to NFS clients.
+          The -y flag auto-confirms the installation prompt.
+
+--------------------------------------------------------------------------------
+CMD 3 | sudo mkdir -p /nfs_shared
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Creates the directory /nfs_shared which will be shared with the client.
+          This is the actual folder that gets exported via NFS.
+          The -p flag ensures no error is thrown if the directory already exists.
+
+--------------------------------------------------------------------------------
+CMD 4 | sudo chown nobody:nogroup /nfs_shared
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Assigns ownership of the shared directory to the generic unprivileged
+          user "nobody" and group "nogroup". This is standard practice for NFS
+          shares to prevent user ID conflicts between the server and client
+          machines (since each machine manages its own user IDs independently).
+
+--------------------------------------------------------------------------------
+CMD 5 | sudo chmod 777 /nfs_shared
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Grants full read (r), write (w), and execute (x) permissions to ALL
+          users on the directory. This ensures the NFS client can create, modify,
+          and delete files in the shared directory without permission errors.
+          (777 = rwxrwxrwx — owner, group, and others all get full access)
+
+--------------------------------------------------------------------------------
+CMD 6 | sudo nano /etc/exports
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Opens the NFS exports configuration file in the nano text editor.
+          This file tells the NFS server WHICH directories to share and
+          WHO is allowed to access them.
+
+  ADD THIS LINE INSIDE THE FILE:
+  /nfs_shared 192.168.56.102(rw,sync,no_subtree_check)
+
+  OPTION BREAKDOWN:
+    /nfs_shared        = The directory on the server to export
+    192.168.56.102     = Only allow this specific client IP to mount the share
+    rw                 = Grant the client read AND write access
+    sync               = Write data to disk before confirming to client (reliable)
+    no_subtree_check   = Skip subtree verification for improved stability
+
+--------------------------------------------------------------------------------
+CMD 7 | sudo exportfs -a
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Applies the /etc/exports configuration and activates all defined
+          NFS shares immediately. The -a flag means "export all entries".
+          This makes the share available to clients without requiring a full
+          service restart.
+
+--------------------------------------------------------------------------------
+CMD 8 | sudo systemctl restart nfs-kernel-server
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Restarts the NFS kernel server service to fully apply all configuration
+          changes. While exportfs -a applies exports, a full restart ensures
+          the service is in a clean, consistent state with no stale settings.
+
+--------------------------------------------------------------------------------
+CMD 9 | sudo exportfs -v
+--------------------------------------------------------------------------------
+  WHERE : Server terminal (192.168.56.101)
+  WHY   : Verifies that the NFS share is correctly configured and active.
+          The -v (verbose) flag shows the full list of currently exported
+          shares along with their options.
+
+  EXPECTED OUTPUT:
+  /nfs_shared   192.168.56.102(sync,wdelay,hide,no_subtree_check,rw,...)
+
+================================================================================
+  SECTION 2 — CLIENT-SIDE COMMANDS  (Run on: 192.168.56.102)
+================================================================================
+
+--------------------------------------------------------------------------------
+CMD 10 | sudo apt update
+--------------------------------------------------------------------------------
+  WHERE : Client terminal (192.168.56.102)
+  WHY   : Same as on the server — refreshes package index before installing
+          the NFS client package to ensure the latest version is available.
+
+--------------------------------------------------------------------------------
+CMD 11 | sudo apt install nfs-common -y
+--------------------------------------------------------------------------------
+  WHERE : Client terminal (192.168.56.102)
+  WHY   : Installs the NFS common utilities required for a Linux client to
+          communicate with, mount, and interact with NFS shares from a server.
+          Without this package, the mount command will not support NFS.
+          The -y flag auto-confirms the installation.
+
+--------------------------------------------------------------------------------
+CMD 12 | sudo mkdir -p /mnt/nfs_client
+--------------------------------------------------------------------------------
+  WHERE : Client terminal (192.168.56.102)
+  WHY   : Creates the local mount point directory /mnt/nfs_client.
+          This is the folder on the client machine where the server's shared
+          directory will be "attached" (mounted). Once mounted, any files
+          placed here are actually stored on the server.
+
+--------------------------------------------------------------------------------
+CMD 13 | sudo mount 192.168.56.101:/nfs_shared /mnt/nfs_client
+--------------------------------------------------------------------------------
+  WHERE : Client terminal (192.168.56.102)
+  WHY   : Mounts the remote NFS share from the server onto the client.
+          After this command runs, /mnt/nfs_client on the client machine
+          will display and interact with the contents of /nfs_shared on
+          the server — just like a local directory.
+
+  FORMAT : sudo mount <server_IP>:<server_shared_dir> <local_mount_point>
+    192.168.56.101       = IP address of the NFS server
+    /nfs_shared          = The exported directory on the server
+    /mnt/nfs_client      = The local directory where it gets mounted
+
+--------------------------------------------------------------------------------
+CMD 14 | df -h
+--------------------------------------------------------------------------------
+  WHERE : Client terminal (192.168.56.102)
+  WHY   : Displays all currently mounted file systems in human-readable format.
+          Used to VERIFY that the NFS share has been successfully mounted.
+          The -h flag shows sizes in KB/MB/GB instead of raw byte counts.
+
+  LOOK FOR THIS LINE IN OUTPUT:
+  192.168.56.101:/nfs_shared   <size>   <used>   <avail>   <use%>   /mnt/nfs_client
+
+================================================================================
+  QUICK REFERENCE — COMMAND ORDER SUMMARY
+================================================================================
+
+  SERVER (192.168.56.101)                CLIENT (192.168.56.102)
+  ─────────────────────────────────────  ─────────────────────────────────────
+  1.  sudo apt update                    10. sudo apt update
+  2.  sudo apt install nfs-kernel-server 11. sudo apt install nfs-common -y
+  3.  sudo mkdir -p /nfs_shared          12. sudo mkdir -p /mnt/nfs_client
+  4.  sudo chown nobody:nogroup ...      13. sudo mount 192.168.56.101:/nfs_shared
+  5.  sudo chmod 777 /nfs_shared                            /mnt/nfs_client
+  6.  sudo nano /etc/exports             14. df -h
+        → add export line
+  7.  sudo exportfs -a
+  8.  sudo systemctl restart nfs-kernel-server
+  9.  sudo exportfs -v
+
+================================================================================
+  END OF COMMAND REFERENCE
+================================================================================
