@@ -2,32 +2,59 @@
 
 #define MAX 10
 
-int processes[MAX];  
+int processes[MAX + 1];
 int n;
 int coordinator = -1;
+int step = 0;
 
-// Function to conduct election
+// Print process status
+void printBar() {
+    printf("\nStatus: ");
+    for (int i = 1; i <= n; i++) {
+        if (i == coordinator && processes[i] == 1)
+            printf("[P%d:COORD] ", i);
+        else if (processes[i] == 1)
+            printf("[P%d:OK] ", i);
+        else
+            printf("[P%d:FAIL] ", i);
+    }
+    printf("\n");
+}
+
+// Election function
 void election(int initiator) {
-    printf("\nProcess %d is initiating election...\n", initiator);
+    step++;
+    printf("\nStep %d: Process %d starts election\n", step, initiator);
 
-    int i;
+    int highestResponder = -1;
 
-    for (i = initiator + 1; i <= n; i++) {
+    for (int i = initiator + 1; i <= n; i++) {
+        printf("Process %d sends ELECTION to Process %d -> ", initiator, i);
+
         if (processes[i] == 1) {
-            printf("Process %d sends ELECTION to Process %d\n", initiator, i);
-
-            // Higher process takes over election
-            election(i);
-            return;
+            printf("Process %d is ACTIVE, sends OK\n", i);
+            highestResponder = i;
+        } else {
+            printf("Process %d is FAILED, no response\n", i);
         }
     }
 
-    // If no higher active process found → becomes coordinator
-    coordinator = initiator;
-    printf("\n>>> Process %d becomes the COORDINATOR <<<\n", coordinator);
+    if (highestResponder == -1) {
+        coordinator = initiator;
+        printf("\nProcess %d becomes the COORDINATOR\n", coordinator);
+
+        printf("Coordinator message sent to lower processes:\n");
+        for (int i = initiator - 1; i >= 1; i--) {
+            if (processes[i] == 1)
+                printf("Process %d informs Process %d\n", coordinator, i);
+        }
+    } else {
+        printf("Process %d gets OK from Process %d\n", initiator, highestResponder);
+        election(highestResponder);
+    }
 }
 
-// Find highest active process below coordinator
+// Find next lower active process
 int findInitiator() {
     for (int i = coordinator - 1; i >= 1; i--) {
         if (processes[i] == 1)
@@ -36,31 +63,37 @@ int findInitiator() {
     return -1;
 }
 
-// Display process status
+// Display table
 void display() {
     printf("\nProcess Status:\n");
     for (int i = 1; i <= n; i++) {
-        if (processes[i] == 1)
-            printf("Process %d: Active\n", i);
-        else
+        if (processes[i] == 1) {
+            if (i == coordinator)
+                printf("Process %d: Active (Coordinator)\n", i);
+            else
+                printf("Process %d: Active\n", i);
+        } else {
             printf("Process %d: Failed\n", i);
+        }
     }
 }
 
+// Main
 int main() {
     int choice, p;
+
+    printf("\nBULLY ALGORITHM SIMULATION\n");
 
     printf("Enter number of processes: ");
     scanf("%d", &n);
 
-    // Take user input for process status
-    printf("\nEnter status of each process (1 = Active, 0 = Failed):\n");
+    printf("\nEnter status (1 = Active, 0 = Failed):\n");
     for (int i = 1; i <= n; i++) {
         printf("Process %d: ", i);
         scanf("%d", &processes[i]);
     }
 
-    
+    // Initial coordinator
     for (int i = n; i >= 1; i--) {
         if (processes[i] == 1) {
             coordinator = i;
@@ -68,8 +101,11 @@ int main() {
         }
     }
 
+    printf("\nInitial Coordinator: Process %d\n", coordinator);
+    printBar();
+
     do {
-        printf("\n--- MENU ---\n");
+        printf("\nMenu:\n");
         printf("1. Display Processes\n");
         printf("2. Fail a Process\n");
         printf("3. Recover a Process\n");
@@ -86,73 +122,78 @@ int main() {
                 break;
 
             case 2:
-                printf("Enter process number to fail: ");
+                printf("Enter process to fail: ");
                 scanf("%d", &p);
 
                 if (processes[p] == 0) {
-                    printf("Process %d is already failed.\n", p);
+                    printf("Process %d already failed\n", p);
                 } else {
                     processes[p] = 0;
-                    printf("Process %d has failed.\n", p);
+                    printf("Process %d failed\n", p);
 
                     if (p == coordinator) {
-                        printf("Coordinator failed! Detecting failure...\n");
+                        printf("Coordinator failed. Starting election\n");
 
+                        coordinator = p;
                         int initiator = findInitiator();
+                        coordinator = -1;
 
                         if (initiator != -1) {
-                            printf("Process %d detects failure and starts election.\n", initiator);
+                            step = 0;
                             election(initiator);
                         } else {
-                            printf("No active processes available.\n");
+                            printf("No active processes left\n");
                         }
                     }
                 }
+                printBar();
                 break;
 
             case 3:
-                printf("Enter process number to recover: ");
+                printf("Enter process to recover: ");
                 scanf("%d", &p);
 
                 if (processes[p] == 1) {
-                    printf("Process %d is already active.\n", p);
+                    printf("Process %d already active\n", p);
                 } else {
                     processes[p] = 1;
-                    printf("Process %d has recovered.\n", p);
+                    printf("Process %d recovered\n", p);
 
-                    if (p > coordinator) {
-                        printf("Recovered process has higher priority. Starting election...\n");
+                    if (coordinator == -1 || p > coordinator) {
+                        printf("Higher priority process recovered. Starting election\n");
+                        step = 0;
                         election(p);
-                    } else {
-                        printf("Recovered process has lower priority. No election needed.\n");
                     }
                 }
+                printBar();
                 break;
 
             case 4:
-                printf("Enter process number to initiate election: ");
+                printf("Enter initiator: ");
                 scanf("%d", &p);
 
                 if (processes[p] == 0) {
-                    printf("Process %d is failed. Cannot initiate election.\n", p);
+                    printf("Process %d is failed\n", p);
                 } else {
+                    step = 0;
                     election(p);
                 }
+                printBar();
                 break;
 
             case 5:
-                if (coordinator != -1 && processes[coordinator] == 1)
-                    printf("Current Coordinator is Process %d\n", coordinator);
+                if (coordinator != -1)
+                    printf("Coordinator: Process %d\n", coordinator);
                 else
-                    printf("No active coordinator. Run election.\n");
+                    printf("No coordinator\n");
                 break;
 
             case 6:
-                printf("Exiting...\n");
+                printf("Exiting\n");
                 break;
 
             default:
-                printf("Invalid choice!\n");
+                printf("Invalid choice\n");
         }
 
     } while (choice != 6);
